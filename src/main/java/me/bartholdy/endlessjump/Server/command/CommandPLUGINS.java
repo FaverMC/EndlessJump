@@ -2,6 +2,7 @@ package me.bartholdy.endlessjump.Server.command;
 
 import me.bartholdy.endlessjump.Server.Main;
 import me.bartholdy.endlessjump.Server.plugin.Plugin;
+import me.bartholdy.endlessjump.Server.util.MessageUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minestom.server.MinecraftServer;
@@ -16,16 +17,7 @@ public class CommandPLUGINS extends Command {
         setDefaultExecutor((sender, context) -> {
             var pluginCount = Main.getInstance().getPluginManager().getPlugins().size();
             sender.sendMessage(Component.text(
-                    "Plugins (" + pluginCount + "): " + GetPluginList()).color(NamedTextColor.RED));
+                    "Plugins (" + pluginCount + "): " + MessageUtil.GetPluginList()).color(NamedTextColor.RED));
         });
-    }
-
-    private String GetPluginList() {
-        return Main.getInstance().getPluginManager().getPlugins().stream()
-                .map(Plugin::getName)
-                .toList()
-                .toString()
-                .replace("[", "")
-                .replaceAll("]", "");
     }
 }
