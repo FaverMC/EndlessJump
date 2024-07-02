@@ -39,6 +39,8 @@ public class Main {
     private InstanceContainer defaultInstanceContainer;
     @Getter
     private PluginManager pluginManager;
+    @Getter
+    private boolean started = false;
 
     public static void main(String[] args) {
         new Main().init();
@@ -112,6 +114,11 @@ public class Main {
             // basic player configuration (on join)
             MinecraftServer.getGlobalEventHandler().addListener(AsyncPlayerConfigurationEvent.class, event -> {
                 Player player = event.getPlayer();
+                if(!started) {
+                    LOGGER.warn(player.getUsername() + " Tried to log in before server was initialised");
+                    player.kick("Please try again");
+                }
+
                 event.setSpawningInstance(instanceContainer);
                 player.setRespawnPoint(customSpawnPosition);
             });
@@ -136,6 +143,8 @@ public class Main {
 
         pluginManager = new PluginManager();
         pluginManager.enablePlugin(new Parkour(this));
+
+        started = true;
     }
 
     private void initCommands(Config.Commands commandData) {
@@ -165,7 +174,6 @@ public class Main {
 //            else
             sender.sendMessage(text("Unknown command: /" + command, NamedTextColor.RED));
         });
-
     }
 
     private void stop() {
