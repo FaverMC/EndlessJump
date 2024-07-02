@@ -17,7 +17,7 @@ public class PlayerDisconnect implements EventListener<PlayerDisconnectEvent> {
     @Override
     public @NotNull Result run(@NotNull PlayerDisconnectEvent event) {
         ParkourPlayer player = (ParkourPlayer) event.getPlayer();
-        player.getParkourBlocks().undo();
+        player.getParkourBlocks().stop();
         return Result.SUCCESS;
     }
 }

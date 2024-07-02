@@ -8,6 +8,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.minestom.server.coordinate.Pos;
+import net.minestom.server.coordinate.Vec;
+import net.minestom.server.entity.Entity;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.player.PlayerMoveEvent;
 import net.minestom.server.instance.Instance;
@@ -15,6 +17,7 @@ import net.minestom.server.instance.LightingChunk;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.scoreboard.Sidebar;
 import net.minestom.server.sound.SoundEvent;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,53 +25,50 @@ import java.util.Random;
 
 public class ParkourBlocks {
     private static final ComponentLogger logger = ComponentLogger.logger(ParkourBlocks.class);
-    @Getter
-    public List<Pos> blockList = new ArrayList<>();     /* Current block sequence */
+    private List<Pos> positionsliste = new ArrayList<>();     /* Current block sequence */
     private int iteration = 1;                          /*  How many block sequences were generated
                                                            i.e. how often does player reached "the checkpoint" */
     private final int SEQUENCE_SIZE = 10;               /* How many blocks should be generated */
     private boolean isBlocked;
-    @Getter
     private final Pos startPosition;
-    @Getter
     private final int teleportThreshold;
-    @Getter
     private final ParkourPlayer player;
-    @Getter
-    private Sidebar sidebar;
     private int deathScore = 0;
-    @Setter
     private int teleportThresholdAdjusted;
+    private ParkourSidebar sidebar;
 
 
     public ParkourBlocks(ParkourPlayer parkourPlayer) {
         Parkour parkour = Parkour.getInstance();
+        this.player = parkourPlayer;
         this.startPosition = parkour.getInstances().getFirst().getWorldSpawnPosition();
         this.teleportThreshold = startPosition.blockY() - 3;
         this.teleportThresholdAdjusted = teleportThreshold;
-        this.player = parkourPlayer;
+        this.sidebar = new ParkourSidebar();
     }
 
-    public void generateSequence(Player player, Pos recursivePos) {
-        Pos pos = (isFirstIteration() ? player.getPosition().add(0, -1, 0) : recursivePos);
+    private void generateSequence(Player player, Pos recursivePos) {
+        Pos pos;
         if (isFirstIteration()) {
+            pos = player.getPosition().add(0, -1, 0);
             player.sendMessage(Component.text("FIRST ITERATION", NamedTextColor.RED));
 //            player.addEffect(new Potion(PotionEffect.DARKNESS, (byte) 1, 9999999));
             player.playSound(Sound.sound(SoundEvent.ENTITY_GENERIC_EXPLODE, Sound.Source.BLOCK, 1f, 1f));
-            setupScoreboard();
-            updateScoreboard();
+            sidebar.show();
         }
 
-        if (blockList.isEmpty()) {
+        pos = recursivePos;
+        sidebar.update();
+        if (positionsliste.isEmpty()) {
             player.sendMessage("Calculating…");
             // Generate positions
             for (int i = 1; i < SEQUENCE_SIZE; i++) {
                 pos = nextRandom(pos);
-                blockList.add(pos);
+                positionsliste.add(pos);
             }
             // Set blocks
             Instance instance = player.getInstance();
-            blockList.forEach(blockPos -> {
+            positionsliste.forEach(blockPos -> {
                 instance.setBlock(blockPos, Block.GRASS_BLOCK);
                 instance.setBlock(blockPos.add(0, -1, 0), Block.END_ROD);
             });
@@ -76,15 +76,15 @@ public class ParkourBlocks {
         } else {
             ParkourBlockThread parkourBlockThread = new ParkourBlockThread();
             parkourBlockThread.start(player);
-            parkourBlockThread.getQueue().addAll(blockList);
-            Pos lastPos = blockList.getLast();
-            blockList.clear();
+            parkourBlockThread.getQueue().addAll(positionsliste);
+            Pos lastPos = positionsliste.getLast();
+            positionsliste.clear();
             player.sendMessage("Re-Calculating…");
             generateSequence(player, lastPos);
 
             float health = player.getHealth();
-            if(health < 20) {
-                player.setHealth(health+1);
+            if (health < 20) {
+                player.setHealth(health + 1);
                 player.playSound(Sound.sound(SoundEvent.ENTITY_SPLASH_POTION_THROW, Sound.Source.BLOCK, 1f, 1f));
             }
         }
@@ -97,23 +97,34 @@ public class ParkourBlocks {
             isBlocked = true;
             generateSequence(player);
 
-        } else if (shouldRecalculate(player.getPosition())) {
+        } else if (shouldRecalculate(player.getPosition())) {       // player#getPosition or event#getNewPosition ?
             isBlocked = false;
             iteration++;
             player.sendMessage(Component.text("Check point set", NamedTextColor.GREEN));
+
+        } else if (shouldRecalculateSave(player.getPosition())) {    // player#getPosition or event#getNewPosition ?
+            isBlocked = false;
+            iteration++;
+            player.sendMessage(Component.text("Checkpoint missed", NamedTextColor.RED));
         }
 
         // Teleport on fail
         if (player.getPosition().y() < teleportThresholdAdjusted) {
-            Teleport(player);
+            Teleport();
             handleHealth();
         }
     }
 
-    public void generateSequence(Player player) {
+    private void generateSequence(Player player) {
         generateSequence(player, getBlockPosUnderPlayer(player.getPosition()));
     }
 
+    /**
+     * Innerer Teil der rekursieven Erstellung der Positionssequenz (aus 10 Pos.)
+     * <p>
+     * Distanziert sich von ggb. Position
+     * Bei Iterierung erhält man eine Positionssequenz
+     */
     private Pos nextRandom(Pos previous) {
         Random random = new Random();
         int pX = previous.blockX();
@@ -156,7 +167,7 @@ public class ParkourBlocks {
         return new Pos(rX, pY, rZ);
     }
 
-    public boolean isFirstIteration() {
+    private boolean isFirstIteration() {
         return iteration == 1;
     }
 
@@ -164,15 +175,29 @@ public class ParkourBlocks {
         return pos.add(0, -1, 0);
     }
 
-    public boolean shouldRecalculate(Pos playerPos) {
-        return CoordinateUtil.comparePos(playerPos, blockList.get
+    /**
+     * Erster Checkoint 3 Blöcke vor Sequenzende.
+     */
+    private boolean shouldRecalculate(Pos playerPos) {
+        return CoordinateUtil.comparePos(playerPos, positionsliste.get
                 (SEQUENCE_SIZE - (3 + 1)) // 4 blocks before end
         );
     }
 
-    private void Teleport(Player player) {
+    /**
+     * Zweiter Checkpoint
+     * Sollte man den ersten Block nicht erwischt oder
+     * übersprungen haben, hat man einen zweiten "Checkpoint".
+     */
+    private boolean shouldRecalculateSave(Pos playerPos) {
+        return CoordinateUtil.comparePos(playerPos, positionsliste.get
+                (SEQUENCE_SIZE - (2 + 1)) // 3 blocks before end
+        );
+    }
+
+    private void Teleport() {
         if (iteration >= 2) {
-            Pos blockPos = blockList.getFirst().add(0, 1, 0);
+            Pos blockPos = positionsliste.getFirst().add(0, 1, 0);
             blockPos = blockPos.withYaw(-45);
             player.teleport(blockPos);
             player.sendMessage(Component.text("Moved to start of ", NamedTextColor.GREEN)
@@ -185,26 +210,12 @@ public class ParkourBlocks {
         }
     }
 
-    public void undo() {
-        for (Pos pos : blockList) {
-            Parkour.getInstance().getInstances().getFirst().setBlock(pos, Block.AIR);
-            Parkour.getInstance().getInstances().getFirst().setBlock(pos.add(0, -1, 0), Block.AIR);
-        }
-    }
-
-    private void setupScoreboard() {
-        this.sidebar = new Sidebar(Component.text(" – JumpBoard – ", NamedTextColor.DARK_AQUA));
-        Sidebar.ScoreboardLine line = new Sidebar.ScoreboardLine(
-                "progress",
-                Component.text("Progress ", NamedTextColor.GRAY).append(Component.text(iteration, NamedTextColor.YELLOW)),
-                0
-        );
-        this.sidebar.createLine(line);
-        this.sidebar.addViewer(player);
-    }
-
-    private void updateScoreboard() {
-        this.sidebar.updateLineScore("progress", iteration);
+    private void undo() {
+        if (!positionsliste.isEmpty())
+            for (Pos pos : positionsliste) {
+                Parkour.getInstance().getInstances().getFirst().setBlock(pos, Block.AIR);
+                Parkour.getInstance().getInstances().getFirst().setBlock(pos.add(0, -1, 0), Block.AIR);
+            }
     }
 
     private void handleHealth() {
@@ -226,6 +237,89 @@ public class ParkourBlocks {
             player.setEnableRespawnScreen(false);
             player.setHealth(20F);
             player.playSound(Sound.sound(SoundEvent.ENTITY_VILLAGER_NO, Sound.Source.MASTER, 1f, 1f));
+        }
+    }
+
+    private void setTeleportThresholdAdjusted(int threshold) {
+        teleportThresholdAdjusted = threshold;
+    }
+
+    public void start() {
+        isBlocked = true;
+        generateSequence(player);
+    }
+
+    public void stop() {
+        undo();
+        iteration = 1;
+        isBlocked = false;
+        sidebar.remove();
+        positionsliste.clear();
+        deathScore = 0; // Beibelassen?
+        player.setHealth(20F);
+        player.clearEffects();
+        player.setExp(0);
+        player.teleport(player.getPosition().withPitch(90F));
+        player.setPose(Entity.Pose.SWIMMING);
+        player.setVelocity(new Vec(0, 999, 0));
+        player.kill();
+    }
+
+    public void onSupport() {
+        Joke joke = Joke.getRandomJoke();
+        Component component = Component.text().appendNewline()
+                .append(Component.text(joke.setup)).appendNewline()
+                .append(Component.text(joke.punchline)).appendNewline()
+                .build();
+        player.sendMessage(component);
+    }
+
+    public void onReset() {
+        Teleport();
+        handleHealth();
+    }
+
+    public void onQuit() {
+        stop();
+    }
+
+    class ParkourSidebar extends Sidebar {
+        private final Component progressLineComponent = Component.text("Progress ", NamedTextColor.GRAY).append(Component.text(iteration, NamedTextColor.YELLOW));
+        private final Component deathsLineComponent = Component.text("Deaths ", NamedTextColor.GRAY).append(Component.text(deathScore, NamedTextColor.YELLOW));
+        private final Component scoreLineComponent = Component.text("Score ", NamedTextColor.GRAY).append(Component.text(iteration, NamedTextColor.YELLOW));
+
+        public ParkourSidebar() {
+            super(Component.text(" – JumpBoard – ", NamedTextColor.DARK_AQUA));
+            createLine(new ScoreboardLine(
+                    "progress",
+                    progressLineComponent,
+                    3
+            ));
+            createLine(new ScoreboardLine("empty", Component.empty(), 2));
+            createLine(new ScoreboardLine(
+                    "deaths",
+                    deathsLineComponent,
+                    1
+            ));
+            createLine(new ScoreboardLine(
+                    "score",
+                    scoreLineComponent,
+                    0
+            ));
+        }
+
+        public void update() {
+            updateLineContent("progress", progressLineComponent);
+            updateLineContent("deaths", progressLineComponent);
+        }
+
+        public void show() {
+            addViewer(player);
+        }
+
+        public void remove() {
+            if (isViewer(player))
+                removeViewer(player);
         }
     }
 }

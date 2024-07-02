@@ -10,7 +10,7 @@ import java.util.UUID;
 public class ParkourPlayer extends Player {
 
     @Getter // created on login
-    private ParkourBlocks parkourBlocks;
+    private final ParkourBlocks parkourBlocks;
 
     public ParkourPlayer(@NotNull UUID uuid, @NotNull String username, @NotNull PlayerConnection playerConnection) {
         super(uuid, username, playerConnection);

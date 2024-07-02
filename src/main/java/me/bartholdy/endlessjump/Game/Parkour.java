@@ -1,10 +1,7 @@
 package me.bartholdy.endlessjump.Game;
 
 import lombok.Getter;
-import me.bartholdy.endlessjump.Game.listener.AsyncPlayerConfiguration;
-import me.bartholdy.endlessjump.Game.listener.PlayerDisconnect;
-import me.bartholdy.endlessjump.Game.listener.PlayerMove;
-import me.bartholdy.endlessjump.Game.listener.PlayerSpawn;
+import me.bartholdy.endlessjump.Game.listener.*;
 import me.bartholdy.endlessjump.Server.Main;
 import me.bartholdy.endlessjump.Server.plugin.Plugin;
 import net.kyori.adventure.text.Component;
@@ -57,6 +54,8 @@ public class Parkour extends Plugin {
                 .addListener(new PlayerSpawn())
                 .addListener(new PlayerDisconnect())
                 .addListener(new PlayerMove())
+                .addListener(new ItemClick())
+                .addListener(new PlayerDrink())
                 .addListener(PlayerSwapItemEvent.class, event -> event.setCancelled(true)); // only main hand allowed
     }
 
@@ -98,13 +97,13 @@ public class Parkour extends Plugin {
 
     public static ItemStack getSupportItem() {
         if (supportItem == null)
-            supportItem = ItemStack.builder(Material.SLIME_BALL).displayName(Component.text("Support", NamedTextColor.GREEN)).build();
+            supportItem = ItemStack.builder(Material.TOTEM_OF_UNDYING).displayName(Component.text("Support", NamedTextColor.GREEN)).build();
         return supportItem;
     }
 
     public static ItemStack getResetItem() {
         if (resetItem == null)
-            resetItem = ItemStack.builder(Material.SLIME_BALL).displayName(Component.text("Reset", NamedTextColor.YELLOW)).build();
+            resetItem = ItemStack.builder(Material.MILK_BUCKET).displayName(Component.text("Reset", NamedTextColor.YELLOW)).build();
         return resetItem;
     }
 
