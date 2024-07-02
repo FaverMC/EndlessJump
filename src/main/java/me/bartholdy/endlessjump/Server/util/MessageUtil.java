@@ -10,6 +10,10 @@ import java.text.DecimalFormat;
 
 import me.bartholdy.endlessjump.Server.Config;
 import me.bartholdy.endlessjump.Server.Main;
+import me.bartholdy.endlessjump.Server.plugin.Plugin;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.format.Style;
+import net.minestom.server.command.builder.Command;
 import org.jetbrains.annotations.NotNull;
 
 import net.kyori.adventure.text.Component;
@@ -63,7 +67,7 @@ public final class MessageUtil {
             .build();
 
     public static final Component LAUNCH_MESSAGE = text()
-            .append(text("Starting Minestom launcher."))
+            .append(text("Starting Minestom server."))
             .append(newline())
             .append(newline())
 
@@ -96,16 +100,40 @@ public final class MessageUtil {
             .append(text(System.getProperty("java.vendor.url"), NamedTextColor.WHITE))
             .append(newline())
 
-            .append(ARROW_COMPONENT)
-            .append(text("commit:\t", NamedTextColor.GRAY))
-            .append(text(Git.commit(), NamedTextColor.WHITE))
-            .append(newline())
+//            .append(ARROW_COMPONENT)
+//            .append(text("commit:\t", NamedTextColor.GRAY))
+//            .append(text(Git.commit(), NamedTextColor.WHITE))
+//            .append(newline())
 
             .append(ARROW_COMPONENT)
             .append(text("version:\t", NamedTextColor.GRAY))
             .append(text(MinecraftServer.VERSION_NAME, NamedTextColor.WHITE))
             .append(text(" - ", NamedTextColor.GRAY))
             .append(text(MinecraftServer.PROTOCOL_VERSION, NamedTextColor.WHITE))
+            .append(newline())
+
+            .append(ARROW_COMPONENT)
+            .append(text("plugins:\t", NamedTextColor.GRAY))
+            .append(text(Main.getInstance().getPluginManager().getPlugins().size(), NamedTextColor.WHITE))
+            .append(newline())
+
+            .append(ARROW_COMPONENT)
+            .append(text("commands:\t", NamedTextColor.GRAY))
+            .append(text(MinecraftServer.getCommandManager().getCommands().size(), NamedTextColor.WHITE))
+            .append(newline())
+
+            .append(newline())
+            .append(space())
+            .append(text("Check out available commands with /commands"))
+            .append(newline())
+            .append(space())
+            .append(text("And for the plugins use /plugins"))
+            .append(newline())
+            .append(space())
+            .append(text("You can also join our"))
+            .append(space())
+            .append(text("discord", Style.style(TextDecoration.UNDERLINED).color(NamedTextColor.DARK_AQUA)))
+            .clickEvent(ClickEvent.openUrl("https://discord.com/invite/3NRXtMSd8p"))
             .append(newline())
 
             .build();
@@ -224,4 +252,22 @@ public final class MessageUtil {
         return text("under no proxy", NamedTextColor.WHITE);
     }
 
+    public static String GetPluginList() {
+        assert Main.getInstance().getPluginManager() !=null;
+        return Main.getInstance().getPluginManager().getPlugins().stream()
+                .map(Plugin::getName)
+                .toList()
+                .toString()
+                .replace("[", "")
+                .replaceAll("]", "");
+    }
+
+    public static String GetCommandList() {
+        return MinecraftServer.getCommandManager().getCommands().stream()
+                .map(Command::getName)
+                .toList()
+                .toString()
+                .replace("[", "")
+                .replaceAll("]", "");
+    }
 }
