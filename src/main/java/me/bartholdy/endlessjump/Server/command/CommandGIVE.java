@@ -17,6 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Nice to have for mods like
+ * "Roughly Enough Items" or "Too Many Items"
+ *
+ */
 public class CommandGIVE extends Command {
     public CommandGIVE() {
         super("give");
